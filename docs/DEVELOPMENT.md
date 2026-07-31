@@ -530,7 +530,7 @@ export OWM_API_KEY=sk_your_real_key
 python -m sun_intensity_agent.cli --lat 38.9 --lon -77.0 --pretty
 
 # Check rate limit headers
-curl -v https://api.openweathermap.org/data/3.0/onecall?lat=38.9&lon=-77.0&appid=$OWM_API_KEY
+curl -v https://api.openweathermap.org/data/4.0/onecall/timeline/1h?lat=38.9&lon=-77.0&appid=$OWM_API_KEY
 ```
 
 ## Troubleshooting Development Issues
@@ -594,7 +594,7 @@ lsof -ti:8000 | xargs kill -9
 - [Pydantic](https://docs.pydantic.dev/)
 
 ### OpenWeatherMap API
-- [One Call 3.0 API](https://openweathermap.org/api/one-call-3)
+- [One Call 4.0 API](https://openweathermap.org/api/one-call-4)
 - [API Documentation](https://openweathermap.org/api)
 
 ---

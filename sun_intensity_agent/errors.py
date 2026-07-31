@@ -20,8 +20,8 @@ class OWMAuthError(OWMError):
     """401 authentication failure."""
     def __init__(self):
         super().__init__(
-            "API key is invalid or One Call 3.0 is not enabled for this key. "
-            "Subscribe to One Call 3.0 at https://openweathermap.org/api/one-call-3"
+            "API key is invalid or One Call 4.0 is not enabled for this key. "
+            "Subscribe to One Call 4.0 at https://openweathermap.org/api/one-call-4"
         )
 
 
