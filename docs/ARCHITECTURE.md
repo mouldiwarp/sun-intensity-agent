@@ -52,7 +52,7 @@ Sun Intensity Agent is a layered Python service that forecasts solar panel perfo
                             │
 ┌──────────────────────────────────────────────────────────────┐
 │                    External Services                         │
-│          OpenWeatherMap One Call API 3.0                     │
+│          OpenWeatherMap One Call API 4.0                     │
 │         (https://api.openweathermap.org/...)                 │
 └──────────────────────────────────────────────────────────────┘
 ```

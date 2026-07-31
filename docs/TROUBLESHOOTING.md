@@ -2,13 +2,13 @@
 
 ## API Key & Authentication Issues
 
-### Error: "API key is invalid or One Call 3.0 is not enabled for this key"
+### Error: "API key is invalid or One Call 4.0 is not enabled for this key"
 
 **Status Code:** 401 Unauthorized
 
 **Causes:**
 - API key is incorrect or typo'd
-- One Call 3.0 subscription not enabled
+- One Call 4.0 subscription not enabled
 - API key has wrong permissions
 
 **Solutions:**
@@ -25,16 +25,16 @@
    fi
    ```
 
-2. **Enable One Call 3.0 Subscription**
-   - Go to https://openweathermap.org/api/one-call-3
+2. **Enable One Call 4.0 Subscription**
+   - Go to https://openweathermap.org/api/one-call-4
    - Log in to your OpenWeatherMap account
-   - Click "Subscribe" on "One Call 3.0" product
+   - Click "Subscribe" on "One Call 4.0" product
    - Free tier: 1,000 calls/day (should appear immediately)
    - Wait 1-2 minutes for activation
 
 3. **Test API Key Directly**
    ```bash
-   curl "https://api.openweathermap.org/data/3.0/onecall?lat=38.9&lon=-77.0&appid=$OWM_API_KEY"
+   curl "https://api.openweathermap.org/data/4.0/onecall/timeline/1h?lat=38.9&lon=-77.0&appid=$OWM_API_KEY"
    ```
    - If this returns data, your key is valid
    - If it returns 401, check subscription status
@@ -326,7 +326,7 @@ uvicorn sun_intensity_agent.server:app --port 9000
 
 ```bash
 # Check OpenWeatherMap status
-curl https://api.openweathermap.org/data/3.0/onecall?lat=38.9&lon=-77.0&appid=$OWM_API_KEY
+curl https://api.openweathermap.org/data/4.0/onecall/timeline/1h?lat=38.9&lon=-77.0&appid=$OWM_API_KEY
 
 # Service will automatically retry
 # Check application logs for details
@@ -470,7 +470,7 @@ ping api.openweathermap.org
 time nslookup api.openweathermap.org
 
 # 3. Actual API response time
-time curl https://api.openweathermap.org/data/3.0/onecall?lat=38.9&lon=-77.0&appid=$OWM_API_KEY
+time curl https://api.openweathermap.org/data/4.0/onecall/timeline/1h?lat=38.9&lon=-77.0&appid=$OWM_API_KEY
 ```
 
 ### High Memory Usage
@@ -533,7 +533,7 @@ python -c "import gc; gc.collect(); print('Done')"
    curl http://localhost:8080/score
    
    # Test OWM API
-   curl https://api.openweathermap.org/data/3.0/onecall?lat=38.9&lon=-77.0&appid=$OWM_API_KEY
+   curl https://api.openweathermap.org/data/4.0/onecall/timeline/1h?lat=38.9&lon=-77.0&appid=$OWM_API_KEY
    ```
 
 5. **Check project issues** — GitHub issues may have solutions to similar problems

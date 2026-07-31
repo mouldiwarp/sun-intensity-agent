@@ -2,10 +2,11 @@
 Application constants and configuration values.
 """
 
-# API Configuration
-OWM_API_ENDPOINT = "https://api.openweathermap.org/data/3.0/onecall"
+# API Configuration (One Call API 4.0)
+OWM_API_BASE = "https://api.openweathermap.org/data/4.0/onecall"
+OWM_API_HOURLY_ENDPOINT = f"{OWM_API_BASE}/timeline/1h"  # 1-hourly forecast
+OWM_API_DAILY_ENDPOINT = f"{OWM_API_BASE}/timeline/1day"  # Daily forecast
 OWM_REQUEST_TIMEOUT = 10  # seconds
-OWM_API_EXCLUDE_PARAMS = "current,minutely,alerts"
 
 # Retry Configuration
 DEFAULT_MAX_RETRIES = 3

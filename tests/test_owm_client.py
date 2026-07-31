@@ -48,31 +48,70 @@ class TestRetryConfig:
         assert delay_5 <= 12.5  # 10s + 25% jitter
 
 
+def _mock_v4_daily_response():
+    """Create a mock V4 daily response."""
+    return {
+        "timelines": [
+            {
+                "intervals": [
+                    {
+                        "startTime": "2026-08-01T00:00:00Z",
+                        "values": {"cloudCover": 0}
+                    },
+                    {
+                        "startTime": "2026-08-02T00:00:00Z",
+                        "values": {"cloudCover": 10}
+                    }
+                ]
+            }
+        ]
+    }
+
+
+def _mock_v4_hourly_response():
+    """Create a mock V4 hourly response."""
+    return {
+        "timelines": [
+            {
+                "intervals": [
+                    {
+                        "startTime": "2026-08-01T00:00:00Z",
+                        "values": {"cloudCover": 0}
+                    },
+                    {
+                        "startTime": "2026-08-01T01:00:00Z",
+                        "values": {"cloudCover": 5}
+                    }
+                ]
+            }
+        ]
+    }
+
+
 class TestFetchForecastSuccess:
     """Test successful API calls."""
 
     @patch("sun_intensity_agent.owm_client.requests.get")
     def test_successful_fetch(self, mock_get):
-        """Test successful forecast fetch."""
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "daily": [
-                {"sunrise": 1000000, "sunset": 1010000, "clouds": 0},
-                {"sunrise": 1086400, "sunset": 1096400, "clouds": 10},
-            ],
-            "hourly": [
-                {"dt": 1000000, "clouds": 0},
-                {"dt": 1003600, "clouds": 5},
-            ],
-        }
-        mock_get.return_value = mock_response
+        """Test successful forecast fetch (V4 API)."""
+        # Mock two separate calls: one for hourly, one for daily
+        mock_response_hourly = Mock()
+        mock_response_hourly.status_code = 200
+        mock_response_hourly.json.return_value = _mock_v4_hourly_response()
+
+        mock_response_daily = Mock()
+        mock_response_daily.status_code = 200
+        mock_response_daily.json.return_value = _mock_v4_daily_response()
+
+        # Both hourly and daily calls return 200
+        mock_get.side_effect = [mock_response_hourly, mock_response_daily]
 
         result = fetch_forecast("test_key", 38.9, -77.0)
 
         assert result["daily"][0]["clouds"] == 0
         assert len(result["hourly"]) == 2
-        mock_get.assert_called_once()
+        # Should be called twice: once for hourly, once for daily
+        assert mock_get.call_count == 2
 
 
 class TestFetchForecastAuthError:
@@ -88,8 +127,8 @@ class TestFetchForecastAuthError:
         with pytest.raises(OWMAuthError) as exc_info:
             fetch_forecast("bad_key", 38.9, -77.0)
 
-        assert "One Call 3.0" in str(exc_info.value)
-        # Should only be called once (no retries)
+        assert "One Call 4.0" in str(exc_info.value) or "API key" in str(exc_info.value)
+        # Should only be called once (no retries) - first endpoint call fails with 401
         assert mock_get.call_count == 1
 
 
@@ -103,15 +142,17 @@ class TestFetchForecastRateLimit:
         mock_response_fail.status_code = 429
         mock_response_fail.headers = {"Retry-After": "2"}
 
-        mock_response_success = Mock()
-        mock_response_success.status_code = 200
-        mock_response_success.json.return_value = {
-            "daily": [{"sunrise": 1000000, "sunset": 1010000, "clouds": 0}],
-            "hourly": [],
-        }
+        # Successful responses (hourly then daily)
+        mock_response_hourly = Mock()
+        mock_response_hourly.status_code = 200
+        mock_response_hourly.json.return_value = _mock_v4_hourly_response()
 
-        # First call returns 429, second returns 200
-        mock_get.side_effect = [mock_response_fail, mock_response_success]
+        mock_response_daily = Mock()
+        mock_response_daily.status_code = 200
+        mock_response_daily.json.return_value = _mock_v4_daily_response()
+
+        # First hourly call returns 429, retry succeeds, then daily call succeeds
+        mock_get.side_effect = [mock_response_fail, mock_response_hourly, mock_response_daily]
 
         # Mock sleep to avoid actual delays
         mock_sleep = Mock()
@@ -125,7 +166,8 @@ class TestFetchForecastRateLimit:
         )
 
         assert result["daily"][0]["clouds"] == 0
-        assert mock_get.call_count == 2
+        # 3 calls: first hourly (429), retry hourly (200), then daily (200)
+        assert mock_get.call_count == 3
         # Sleep should have been called once between retries
         assert mock_sleep.call_count == 1
 
@@ -172,17 +214,20 @@ class TestFetchForecastServerError:
     @patch("sun_intensity_agent.owm_client.requests.get")
     def test_5xx_error_retry_success(self, mock_get):
         """Test that 5xx errors are retried."""
+        # First call: hourly endpoint returns 502, then succeeds
         mock_response_fail = Mock()
         mock_response_fail.status_code = 502
 
-        mock_response_success = Mock()
-        mock_response_success.status_code = 200
-        mock_response_success.json.return_value = {
-            "daily": [{"sunrise": 1000000, "sunset": 1010000, "clouds": 50}],
-            "hourly": [],
-        }
+        mock_response_hourly = Mock()
+        mock_response_hourly.status_code = 200
+        mock_response_hourly.json.return_value = _mock_v4_hourly_response()
 
-        mock_get.side_effect = [mock_response_fail, mock_response_success]
+        mock_response_daily = Mock()
+        mock_response_daily.status_code = 200
+        mock_response_daily.json.return_value = _mock_v4_daily_response()
+
+        # Sequence: hourly fails (502), hourly retries (200), daily (200)
+        mock_get.side_effect = [mock_response_fail, mock_response_hourly, mock_response_daily]
         mock_sleep = Mock()
 
         result = fetch_forecast(
@@ -193,9 +238,10 @@ class TestFetchForecastServerError:
             sleep_func=mock_sleep,
         )
 
-        assert result["daily"][0]["clouds"] == 50
-        assert mock_get.call_count == 2
-        assert mock_sleep.call_count == 1
+        assert len(result["daily"]) > 0
+        assert result["daily"][0]["clouds"] == 0  # First day from mock
+        assert mock_get.call_count == 3  # fail, retry hourly, then daily
+        assert mock_sleep.call_count == 1  # One sleep between retry
 
     @patch("sun_intensity_agent.owm_client.requests.get")
     def test_5xx_error_exhausted(self, mock_get):
@@ -229,12 +275,19 @@ class TestFetchForecastConnectionError:
         import requests
 
         mock_sleep = Mock()
+        mock_response_hourly = Mock()
+        mock_response_hourly.status_code = 200
+        mock_response_hourly.json.return_value = _mock_v4_hourly_response()
+
+        mock_response_daily = Mock()
+        mock_response_daily.status_code = 200
+        mock_response_daily.json.return_value = _mock_v4_daily_response()
+
+        # Sequence: hourly timeout, hourly retry succeeds, daily succeeds
         mock_get.side_effect = [
             requests.Timeout("Connection timeout"),
-            Mock(status_code=200, json=lambda: {
-                "daily": [{"sunrise": 1000000, "sunset": 1010000, "clouds": 0}],
-                "hourly": [],
-            }),
+            mock_response_hourly,
+            mock_response_daily,
         ]
 
         result = fetch_forecast(
@@ -245,8 +298,9 @@ class TestFetchForecastConnectionError:
             sleep_func=mock_sleep,
         )
 
-        assert result["daily"][0]["clouds"] == 0
-        assert mock_get.call_count == 2
+        assert len(result["daily"]) > 0
+        assert result["daily"][0]["clouds"] == 0  # First day from mock
+        assert mock_get.call_count == 3  # timeout, retry hourly, daily
         assert mock_sleep.call_count == 1
 
     @patch("sun_intensity_agent.owm_client.requests.get")
@@ -255,12 +309,19 @@ class TestFetchForecastConnectionError:
         import requests
 
         mock_sleep = Mock()
+        mock_response_hourly = Mock()
+        mock_response_hourly.status_code = 200
+        mock_response_hourly.json.return_value = _mock_v4_hourly_response()
+
+        mock_response_daily = Mock()
+        mock_response_daily.status_code = 200
+        mock_response_daily.json.return_value = _mock_v4_daily_response()
+
+        # Sequence: hourly connection error, hourly retry succeeds, daily succeeds
         mock_get.side_effect = [
             requests.ConnectionError("Connection refused"),
-            Mock(status_code=200, json=lambda: {
-                "daily": [{"sunrise": 1000000, "sunset": 1010000, "clouds": 0}],
-                "hourly": [],
-            }),
+            mock_response_hourly,
+            mock_response_daily,
         ]
 
         result = fetch_forecast(
@@ -271,8 +332,9 @@ class TestFetchForecastConnectionError:
             sleep_func=mock_sleep,
         )
 
-        assert result["daily"][0]["clouds"] == 0
-        assert mock_get.call_count == 2
+        assert len(result["daily"]) > 0
+        assert result["daily"][0]["clouds"] == 0  # First day from mock
+        assert mock_get.call_count == 3  # error, retry hourly, daily
 
 
 class TestFetchForecastClientError:

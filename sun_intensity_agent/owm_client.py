@@ -2,12 +2,13 @@ import requests
 import time
 import random
 from typing import Any, Dict, Callable, Optional
+from datetime import datetime, timedelta
 
 from .errors import OWMError, OWMAuthError, OWMRateLimitError, OWMRequestError
 from .constants import (
-    OWM_API_ENDPOINT,
+    OWM_API_HOURLY_ENDPOINT,
+    OWM_API_DAILY_ENDPOINT,
     OWM_REQUEST_TIMEOUT,
-    OWM_API_EXCLUDE_PARAMS,
     DEFAULT_MAX_RETRIES,
     DEFAULT_BASE_DELAY,
     DEFAULT_MAX_DELAY,
@@ -69,46 +70,26 @@ def _should_retry(exception: Exception, attempt: int, max_retries: int) -> bool:
     return True
 
 
-def fetch_forecast(
+def _fetch_v4_endpoint(
+    endpoint: str,
     api_key: str,
     lat: float,
     lon: float,
-    retry_config: Optional[RetryConfig] = None,
-    sleep_func: Optional[Callable[[float], None]] = None,
+    retry_config: RetryConfig,
+    sleep_func: Callable[[float], None],
 ) -> Dict[str, Any]:
-    """
-    Fetch tomorrow's forecast from One Call API 3.0 with exponential backoff retry.
-
-    Args:
-        api_key: OpenWeatherMap API key
-        lat: Latitude
-        lon: Longitude
-        retry_config: Retry configuration (default: 3 retries, 1s base delay)
-        sleep_func: Function to sleep (default: time.sleep, overridable for testing)
-
-    Returns:
-        dict with 'daily' and 'hourly' arrays
-
-    Raises:
-        OWMAuthError: 401 (not retried, auth errors are permanent)
-        OWMRateLimitError: 429 (retried with exponential backoff)
-        OWMRequestError: Timeouts, 5xx, connection errors (retried with exponential backoff)
-    """
-    retry_config = retry_config or RetryConfig()
-    sleep_func = sleep_func or time.sleep
-
+    """Fetch data from a V4 API endpoint with retry logic."""
     params = {
         "lat": lat,
         "lon": lon,
         "appid": api_key,
-        "exclude": OWM_API_EXCLUDE_PARAMS,
     }
 
     for attempt in range(retry_config.max_retries + 1):
         exception: Optional[OWMError] = None
 
         try:
-            response = requests.get(OWM_API_ENDPOINT, params=params, timeout=OWM_REQUEST_TIMEOUT)
+            response = requests.get(endpoint, params=params, timeout=OWM_REQUEST_TIMEOUT)
 
             if response.status_code >= 400:
                 raise _handle_response_error(response.status_code, response.text, response.headers)
@@ -130,5 +111,91 @@ def fetch_forecast(
             else:
                 raise exception
 
-    # Safety net (should not reach here)
     raise OWMRequestError("Unexpected error: retry loop exhausted")
+
+
+def fetch_forecast(
+    api_key: str,
+    lat: float,
+    lon: float,
+    retry_config: Optional[RetryConfig] = None,
+    sleep_func: Optional[Callable[[float], None]] = None,
+) -> Dict[str, Any]:
+    """
+    Fetch tomorrow's forecast from One Call API 4.0 with exponential backoff retry.
+
+    Uses two endpoints:
+    - /timeline/1h for hourly forecast (48 hours)
+    - /timeline/1day for daily forecast
+
+    Args:
+        api_key: OpenWeatherMap API key
+        lat: Latitude
+        lon: Longitude
+        retry_config: Retry configuration (default: 3 retries, 1s base delay)
+        sleep_func: Function to sleep (default: time.sleep, overridable for testing)
+
+    Returns:
+        dict with 'daily' and 'hourly' arrays in V3.0-compatible format
+
+    Raises:
+        OWMAuthError: 401 (not retried, auth errors are permanent)
+        OWMRateLimitError: 429 (retried with exponential backoff)
+        OWMRequestError: Timeouts, 5xx, connection errors (retried with exponential backoff)
+    """
+    retry_config = retry_config or RetryConfig()
+    sleep_func = sleep_func or time.sleep
+
+    # Fetch hourly data (48 hours forecast)
+    hourly_data = _fetch_v4_endpoint(
+        OWM_API_HOURLY_ENDPOINT, api_key, lat, lon, retry_config, sleep_func
+    )
+
+    # Fetch daily data
+    daily_data = _fetch_v4_endpoint(
+        OWM_API_DAILY_ENDPOINT, api_key, lat, lon, retry_config, sleep_func
+    )
+
+    # Convert V4 response format to V3.0-compatible format for backward compatibility
+    # V4 returns: {"timelines": [{"intervals": [...]}]}
+    # We need: {"daily": [...], "hourly": [...]}
+
+    daily_intervals = []
+    if "timelines" in daily_data:
+        for timeline in daily_data["timelines"]:
+            if "intervals" in timeline:
+                daily_intervals = timeline["intervals"]
+                break
+
+    hourly_intervals = []
+    if "timelines" in hourly_data:
+        for timeline in hourly_data["timelines"]:
+            if "intervals" in timeline:
+                hourly_intervals = timeline["intervals"]
+                break
+
+    # Map V4 daily format to V3.0-compatible format
+    mapped_daily = []
+    for interval in daily_intervals:
+        day = {
+            "sunrise": int(datetime.fromisoformat(interval["startTime"].replace("Z", "+00:00")).timestamp()),
+            "sunset": int(
+                (datetime.fromisoformat(interval["startTime"].replace("Z", "+00:00")) + timedelta(days=1)).timestamp()
+            ),
+            "clouds": interval.get("values", {}).get("cloudCover", 0),
+        }
+        mapped_daily.append(day)
+
+    # Map V4 hourly format to V3.0-compatible format
+    mapped_hourly = []
+    for interval in hourly_intervals:
+        hour = {
+            "dt": int(datetime.fromisoformat(interval["startTime"].replace("Z", "+00:00")).timestamp()),
+            "clouds": interval.get("values", {}).get("cloudCover", 0),
+        }
+        mapped_hourly.append(hour)
+
+    return {
+        "daily": mapped_daily,
+        "hourly": mapped_hourly,
+    }

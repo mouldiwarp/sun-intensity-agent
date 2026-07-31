@@ -13,14 +13,14 @@ Generate a 0-100 "clear sky score" for tomorrow's daylight hours to inform solar
 ### Prerequisites
 
 - Python 3.9+
-- OpenWeatherMap API key with "One Call 3.0" subscription (free: 1,000 calls/day)
+- OpenWeatherMap API key with "One Call 4.0" subscription (free: 1,000 calls/day)
 - Docker (optional, for containerized deployment)
 
 ### 1. Get API Key
 
-Visit [OpenWeatherMap One Call 3.0](https://openweathermap.org/api/one-call-3) and:
+Visit [OpenWeatherMap One Call 4.0](https://openweathermap.org/api/one-call-4) and:
 1. Create an account
-2. Subscribe to "One Call 3.0" (free tier available)
+2. Subscribe to "One Call 4.0" (free tier available)
 3. Copy your API key
 
 ### 2. Install & Configure
@@ -272,7 +272,7 @@ Get tomorrow's sun intensity score.
 | Status | Error | Meaning |
 |--------|-------|---------|
 | **400** | Missing/invalid location | LAT/LON not provided or out of range |
-| **401** | Unauthorized | Invalid API key or missing One Call 3.0 subscription |
+| **401** | Unauthorized | Invalid API key or missing One Call 4.0 subscription |
 | **429** | Too Many Requests | Rate limit exceeded; retry later |
 | **502** | Bad Gateway | OpenWeatherMap server error; retry later |
 | **500** | Internal Server Error | Unexpected error |
@@ -419,9 +419,9 @@ echo "Tomorrow's sun score: $SCORE, charging battery to $CHARGE_PERCENT%"
 
 ### Common Issues
 
-**Error: "API key is invalid or One Call 3.0 is not enabled"**
+**Error: "API key is invalid or One Call 4.0 is not enabled"**
 - ✅ Check that `OWM_API_KEY` is set correctly
-- ✅ Verify you subscribed to "One Call 3.0" at https://openweathermap.org/api/one-call-3
+- ✅ Verify you subscribed to "One Call 4.0" at https://openweathermap.org/api/one-call-4
 - ✅ Wait a few moments for the subscription to activate
 
 **Error: "Latitude and longitude must be provided"**
@@ -544,7 +544,7 @@ For issues, questions, or suggestions:
 
 ## References
 
-- [OpenWeatherMap One Call 3.0 API](https://openweathermap.org/api/one-call-3)
+- [OpenWeatherMap One Call 4.0 API](https://openweathermap.org/api/one-call-4)
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
 - [Pydantic Documentation](https://docs.pydantic.dev/)
 - [Python Type Hints](https://docs.python.org/3/library/typing.html)
