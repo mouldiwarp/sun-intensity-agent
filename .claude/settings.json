@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "read": [
+      "*"
+    ],
+    "write": [
+      "sun_intensity_agent/**",
+      "tests/**",
+      "requirements.txt",
+      ".env*",
+      "*.md",
+      "Dockerfile"
+    ],
+    "bash": [
+      "python*",
+      "pytest*",
+      "find",
+      "ls",
+      "docker",
+      "git"
+    ],
+    "mcp": [
+      "*"
+    ]
+  }
+}
